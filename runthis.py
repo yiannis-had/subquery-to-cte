@@ -2,9 +2,7 @@ import sqlvalidator
 from sqlvalidator.grammar.sql import Parenthesis, SelectStatement, Table
 
 sql_query = sqlvalidator.parse("""
-
-select *, row_number() over(partition by a order by b desc) row_num from (select a,b,c from  (select * from table_x where family = 'Smiths')  ) 
-
+select *, row_number() over(partition by a order by b desc) row_num from (select a,b,c from  (select * from table_x where family = 'Smiths') )
 """)
 
 def graph_it(sql_query):
@@ -29,9 +27,7 @@ for index, node in enumerate(reversed(nodes), start=1):
         select_statement.from_statement = Table(f"cte_{index-1}")
     print(f"WITH cte_{index} AS (")
     print(select_statement.transform())
-    
     print(")", end='')
     if not outermost_select:
         print(",")
 print()
-# print(sql_query.sql_query)
