@@ -1,0 +1,1 @@
+This is from https://github.com/yiannis-had/sqlvalidator, which is a fork of https://github.com/David-Wobrock/sqlvalidator.
