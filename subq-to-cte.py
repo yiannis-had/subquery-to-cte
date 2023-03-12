@@ -23,11 +23,22 @@ for index, node in enumerate(reversed(nodes), start=1):
     select_statement: SelectStatement = nodes[node]
     innermost_select = node not in edges
     outermost_select = node == list(nodes.keys())[0]
+    before_outermost_select = node == list(nodes.keys())[1]
     if not innermost_select:
         select_statement.from_statement = Table(f"cte_{index-1}")
-    print(f"WITH cte_{index} AS (")
-    print(select_statement.transform())
-    print(")", end='')
-    if not outermost_select:
-        print(",")
-print()
+
+
+    if innermost_select:
+        print(f"WITH cte_{index} AS (")
+        print(select_statement.transform())
+        print("),")
+    if not innermost_select and not outermost_select:
+        print(f"cte_{index} AS (")
+        print(select_statement.transform())
+        if not before_outermost_select:
+            print("),")
+        else:
+            print(")")
+    elif outermost_select:
+        print(select_statement.transform())
+
