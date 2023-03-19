@@ -27,6 +27,7 @@ def graph_it(sql_query: SelectStatement | WithStatement):
 nodes = graph_it(sql_query.sql_query)
 nodes_keys = list(nodes.keys())
 reversed_nodes_keys = list(reversed(nodes_keys))
+print('WITH ', end='')
 for index, node in enumerate(reversed_nodes_keys):
     prev_node = None if index == 0 else reversed_nodes_keys[index-1]
     select_statement: SelectStatement = nodes[node]
@@ -38,17 +39,13 @@ for index, node in enumerate(reversed_nodes_keys):
     if not innermost_select:
         select_statement.from_statement = Table(f"{prev_node}") if prev_node_aliased_select else Table(f"cte_{prev_node}") 
 
-    if innermost_select:
-        print(f"WITH {node} AS (") if aliased_select else print(f"WITH cte_{node} AS (")
-        print(select_statement.transform())
-        print("),")
-    if not innermost_select and not outermost_select:
+    if not outermost_select:
         print(f"{node} AS (") if aliased_select else print(f"cte_{node} AS (")
         print(select_statement.transform())
         if not before_outermost_select:
             print("),")
         else:
             print(")")
-    elif outermost_select:
+    else:
         print(select_statement.transform())
 
