@@ -7,8 +7,6 @@ select *, row_number() over(partition by a order by b desc) row_num from (select
 
 def graph_it(sql_query: SelectStatement | WithStatement):
     nodes = {}
-    edges = {}
-    edges_stack = []
     def parse_tree(sql_query, counter=0):
         if isinstance(sql_query, Alias) and isinstance(sql_query.expression, Parenthesis):
             alias = sql_query.alias
@@ -19,24 +17,20 @@ def graph_it(sql_query: SelectStatement | WithStatement):
             alias = None
         key = alias if alias else counter
         nodes[key] = sql_query
-        if edges_stack:
-            prev_key = edges_stack.pop()
-            edges[prev_key] = key
-        edges_stack.append(key)
         if alias is None:
             counter += 1
         if hasattr(sql_query, 'from_statement') and not isinstance(sql_query.from_statement, Table):
             return parse_tree(sql_query.from_statement, counter)
-        return (nodes, edges)
+        return nodes
     return parse_tree(sql_query)
 
-nodes, edges = graph_it(sql_query.sql_query)
+nodes = graph_it(sql_query.sql_query)
 nodes_keys = list(nodes.keys())
 reversed_nodes_keys = list(reversed(nodes_keys))
 for index, node in enumerate(reversed_nodes_keys):
     prev_node = None if index == 0 else reversed_nodes_keys[index-1]
     select_statement: SelectStatement = nodes[node]
-    innermost_select = node not in edges
+    innermost_select = node == reversed_nodes_keys[0]
     outermost_select = node == nodes_keys[0]
     before_outermost_select = node == nodes_keys[1]
     aliased_select = isinstance(node, str)
