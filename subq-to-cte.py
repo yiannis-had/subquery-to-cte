@@ -11,10 +11,10 @@ def graph_it(sql_query: SelectStatement | WithStatement):
         if isinstance(sql_query, Alias) and isinstance(sql_query.expression, Parenthesis):
             alias = sql_query.alias
             sql_query = sql_query.expression
-            if isinstance(sql_query, Parenthesis) and isinstance(sql_query.args[0], SelectStatement):
-                sql_query = sql_query.args[0]
         else:
             alias = None
+        if isinstance(sql_query, Parenthesis) and isinstance(sql_query.args[0], SelectStatement):
+            sql_query = sql_query.args[0]
         key = alias if alias else counter
         nodes[key] = sql_query
         if alias is None:
