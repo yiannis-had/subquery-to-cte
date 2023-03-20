@@ -1,5 +1,5 @@
 import sqlvalidator
-from sqlvalidator.grammar.sql import Parenthesis, SelectStatement, WithStatement, Table, Alias
+from sqlvalidator.grammar.sql import SelectStatement, WithStatement, Table, Alias, Parenthesis, transform
 
 sql_query = sqlvalidator.parse("""
 select *, row_number() over(partition by a order by b desc) row_num from (select a,b,c from  (select * from table_x where family = 'Smiths';)a )b
@@ -41,11 +41,11 @@ for index, node in enumerate(reversed_nodes_keys):
 
     if not outermost_select:
         print(f"{node} AS (") if aliased_select else print(f"cte_{node} AS (")
-        print(select_statement.transform())
+        print(transform(select_statement))
         if not before_outermost_select:
             print("),")
         else:
             print(")")
     else:
-        print(select_statement.transform())
+        print(transform(select_statement))
 
