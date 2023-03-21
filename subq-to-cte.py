@@ -1,11 +1,12 @@
 import sqlvalidator
 from sqlvalidator.grammar.sql import SelectStatement, WithStatement, Table, Alias, Parenthesis, transform
+from typing import Union
 
 sql_query = sqlvalidator.parse("""
 select *, row_number() over(partition by a order by b desc) row_num from (select a,b,c from  (select * from table_x where family = 'Smiths';)a )b
 """)
 
-def graph_it(sql_query: SelectStatement | WithStatement):
+def graph_it(sql_query: Union[SelectStatement, WithStatement]):
     nodes = {}
     def parse_tree(sql_query, counter=0):
         if isinstance(sql_query, Alias) and isinstance(sql_query.expression, Parenthesis):
