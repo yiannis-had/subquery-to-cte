@@ -284,7 +284,16 @@ def compute_file_content(
                 token_generator, (None, None, None, None, None)
             )
             if next_token is None:
-                tokens.append((token_type, token_value, starting, ending, line))
+                # EOF reached without a comment or string — still format/validate
+                formatted_sql, sql_query = handle_sql_string(token_value)
+                if formatted_sql != token_value and should_format:
+                    tokens.append((token_type, formatted_sql, starting, ending, line))
+                    count_changed_sql += 1
+                else:
+                    tokens.append((token_type, token_value, starting, ending, line))
+                if should_validate and not sql_query.is_valid():
+                    count_has_errors += 1
+                    errors_locations.append((starting[0], sql_query.errors))
                 tokens += following_tokens
                 return
             following_tokens.append(

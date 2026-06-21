@@ -12,15 +12,24 @@ Automatically rewrites SQL `SELECT` statements by extracting nested subqueries i
 ## Features
 
 - **Alias-aware naming** — CTE names are derived from existing aliases when available (e.g. `recent_orders`, `tier`), falling back to `cte_1`, `cte_2`, etc.
-- **Comment propagation** — SQL comments (`--` and `/* */`) preceding a subquery are preserved and attached above the corresponding CTE in the output.
+- **Comment propagation** — SQL comments (`--` and `/* */`) preceding a subquery are preserved and attached above the corresponding CTE in the output. Comments are propagated even for deeply nested subqueries and identical subqueries appearing in multiple locations.
 - **Name collision avoidance** — existing table names in the query are collected upfront so generated CTE names never shadow them.
+- **Robust comment matching** — each subquery's original SQL text is captured before rewriting, so comment positions are reliably resolved regardless of nesting depth.
 
 ## Usage
 
-Edit the `query` variable in `subq-to-cte.py` and run:
+### Command-line
+
+Pass a SQL file:
 
 ```bash
-python3 subq-to-cte.py
+python3 subq-to-cte.py query.sql
+```
+
+Or pipe SQL via stdin:
+
+```bash
+cat query.sql | python3 subq-to-cte.py
 ```
 
 The rewritten SQL is printed to stdout.
@@ -28,11 +37,13 @@ The rewritten SQL is printed to stdout.
 ### As a library
 
 ```python
-from subq_to_cte import rewrite_query  # rename file or adjust import as needed
+from subq_to_cte import rewrite_query
 
 sql = "SELECT * FROM (SELECT id FROM users) u WHERE ..."
 print(rewrite_query(sql))
 ```
+
+> **Note:** If importing from a different directory, adjust `sys.path` or install the package.
 
 ## Example
 
