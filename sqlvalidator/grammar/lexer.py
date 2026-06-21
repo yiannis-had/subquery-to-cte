@@ -394,9 +394,11 @@ class WithStatementParser:
         """Parse a stream of tokens representing a WITH statement (CTEs)."""
         with_queries = []
 
-        with_query_name = None
+        first_token = next(tokens)
+        recursive = lower(first_token) == "recursive"
+        with_query_name = first_token if not recursive else next(tokens)
+
         while lower(with_query_name) != "select":
-            with_query_name = next(tokens)
             next_token = next(tokens)
             assert lower(next_token) == "as", next_token
             next_token = next(tokens)
@@ -409,7 +411,7 @@ class WithStatementParser:
             with_query_name = next(tokens)
 
         select_statement = SelectStatementParser.parse(tokens)
-        return WithStatement(with_queries, select_statement)
+        return WithStatement(with_queries, select_statement, recursive=recursive)
 
 
 class SetOperatorTypeParser:

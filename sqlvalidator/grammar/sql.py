@@ -515,14 +515,18 @@ class WithQuery(Expression):
 
 
 class WithStatement(Expression):
-    def __init__(self, with_queries: list[WithQuery], select_statement):
+    def __init__(
+        self, with_queries: list[WithQuery], select_statement, recursive: bool = False
+    ):
         super().__init__(select_statement)
-        # todo: recursive
+        self.recursive = recursive
         self.with_queries = with_queries
         self.select_statement = select_statement
 
     def transform(self):
-        return "WITH {}\n{}".format(
+        keyword = "WITH RECURSIVE" if self.recursive else "WITH"
+        return "{} {}\n{}".format(
+            keyword,
             ",\n".join(map(transform, self.with_queries)),
             transform(self.select_statement),
         )
@@ -530,6 +534,7 @@ class WithStatement(Expression):
     def __eq__(self, other):
         return (
             type(self) is type(other)
+            and self.recursive == other.recursive
             and len(self.with_queries) == len(other.with_queries)
             and all(a == o for a, o in zip(self.with_queries, other.with_queries))
             and self.select_statement == other.select_statement

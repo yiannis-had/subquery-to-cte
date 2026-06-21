@@ -57,7 +57,6 @@ def _collect_tables(node: Any, tables: set[str]) -> None:
     )
 
 
-# Kept as an alias so existing imports (e.g. tests) continue to work.
 class TableCollector:
     def __init__(self) -> None:
         self.tables: set[str] = set()
@@ -143,9 +142,7 @@ class CTERewriter:
 
         # SelectStatement
         if isinstance(node, SelectStatement):
-            # Capture the ORIGINAL SQL *before* rewriting children.
-            # This preserves the actual text from the query so it can be
-            # matched back to source positions for comment extraction.
+            # Capture the original SQL before rewriting children.
             original_sql_before: str | None = None
             if not is_root:
                 original_sql_before = transform(node)

@@ -1,7 +1,7 @@
 import warnings
 
 from sqlvalidator import parse
-from sqlvalidator.grammar.sql import SelectStatement, Table
+from sqlvalidator.grammar.sql import SelectStatement, Table, WithStatement
 from subq_to_cte import (
     CommentedWithQuery,
     CTERewriter,
@@ -366,3 +366,71 @@ WHERE c.id IN (
         inner_cte_name = names[0]
         inner_ref = result.find(inner_cte_name, spending_idx)
         assert inner_ref != -1
+
+
+class TestWithRecursiveParsing:
+    """Tests for WITH RECURSIVE parsing support."""
+
+    def test_with_recursive_parsed_correctly(self):
+        """WITH RECURSIVE should be parsed and the flag preserved."""
+        sql = (
+            "WITH RECURSIVE cte AS (SELECT 1 AS n UNION ALL SELECT n + 1 FROM cte WHERE n < 10) "
+            "SELECT * FROM cte;"
+        )
+        parsed = parse(sql)
+        root = parsed.sql_query
+        assert isinstance(root, WithStatement)
+        assert root.recursive is True
+
+    def test_with_non_recursive_flag_is_false(self):
+        """Plain WITH (no RECURSIVE) should have recursive=False."""
+        sql = "WITH cte AS (SELECT 1 AS n) SELECT * FROM cte;"
+        parsed = parse(sql)
+        root = parsed.sql_query
+        assert isinstance(root, WithStatement)
+        assert root.recursive is False
+
+    def test_with_recursive_output_preserves_keyword(self):
+        """WITH RECURSIVE should appear in the transform output."""
+        sql = (
+            "WITH RECURSIVE cte AS (SELECT 1 AS n UNION ALL SELECT n + 1 FROM cte WHERE n < 10) "
+            "SELECT * FROM cte;"
+        )
+        parsed = parse(sql)
+        result = parsed.sql_query.transform()
+        assert result.startswith("WITH RECURSIVE ")
+
+    def test_with_non_recursive_output_no_keyword(self):
+        """Plain WITH should not include RECURSIVE in output."""
+        sql = "WITH cte AS (SELECT 1 AS n) SELECT * FROM cte;"
+        parsed = parse(sql)
+        result = parsed.sql_query.transform()
+        assert result.startswith("WITH ")
+        assert "RECURSIVE" not in result
+
+
+class TestWithRecursiveRewriting:
+    """Tests for rewriting queries that contain WITH RECURSIVE."""
+
+    def test_recursive_cte_no_subqueries_passes_through(self):
+        """WITH RECURSIVE with no subqueries to extract should pass through unchanged."""
+        sql = (
+            "WITH RECURSIVE nums AS (SELECT 1 AS n UNION ALL SELECT n + 1 FROM nums WHERE n < 5) "
+            "SELECT * FROM nums;"
+        )
+        result = rewrite_query(sql)
+        assert "WITH RECURSIVE" in result
+        assert "nums" in result
+
+    def test_recursive_cte_with_subqueries_extracts_and_preserves_recursive(self):
+        """WITH RECURSIVE + subqueries: new CTEs are prepended, RECURSIVE keyword preserved."""
+        sql = (
+            "WITH RECURSIVE nums AS (SELECT 1 AS n UNION ALL SELECT n + 1 FROM nums WHERE n < 5) "
+            "SELECT * FROM nums "
+            "JOIN (SELECT id FROM users) u ON u.id = nums.n;"
+        )
+        result = rewrite_query(sql)
+        assert "WITH RECURSIVE" in result
+        names = _extract_cte_names(result)
+        assert "nums" in names
+        assert "u" in names
