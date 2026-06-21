@@ -1,4 +1,4 @@
-from typing import Any, Iterator, List, Optional, Tuple
+from typing import Any, Iterator, Optional, Tuple
 
 from sqlvalidator.grammar.sql import (
     Alias,
@@ -63,7 +63,7 @@ class SQLStatementParser:
     """Entry point parser that delegates to SELECT or WITH statement parsers."""
 
     @staticmethod
-    def parse(tokens: Iterator[str]) -> Expression:
+    def parse(tokens: Iterator[str]) -> SelectStatement | WithStatement:
         """Parse a stream of tokens starting with SELECT or WITH into an AST Expression."""
         next_token = next(tokens)
         if lower(next_token) == "select":
@@ -281,7 +281,10 @@ class FromStatementParser:
             join_type = JoinTypeParser.parse(iter(expression_tokens))
 
             if join_type in ("CROSS JOIN", ","):
-                expression_tokens, next_token = [next_token] + list(tokens), None
+                expression_tokens, next_token = (
+                    [t for t in [next_token] + list(tokens) if t is not None],
+                    None,
+                )
             else:
                 expression_tokens, next_token = get_tokens_until_one_of(
                     tokens, ("on", "using"), first_token=next_token
@@ -557,7 +560,7 @@ class ExpressionParser:
         until_one_of=None,
         first_token=None,
         is_chained_columns=False,
-    ) -> Tuple[Expression, Any]:
+    ) -> Tuple[Expression | SelectStatement, Any]:
         until_one_of = until_one_of or []
 
         main_token = first_token or next(tokens)
@@ -909,9 +912,9 @@ class ExpressionParser:
             argument_tokens = get_tokens_until_closing_parenthesis(tokens)
             arguments = ExpressionListParser.parse(iter(argument_tokens))
             for arg in arguments:
-                assert (
-                    isinstance(arg, Alias) and arg.with_as is True
-                ), "SELECT * REPLACE arguments must be alias with AS"
+                assert isinstance(arg, Alias) and arg.with_as is True, (
+                    "SELECT * REPLACE arguments must be alias with AS"
+                )
             expression = ReplaceClause(expression, arguments)
             next_token = next(tokens, None)
 

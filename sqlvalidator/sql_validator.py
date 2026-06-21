@@ -1,7 +1,5 @@
-from typing import Any, List, Optional
-
 from sqlvalidator.grammar.lexer import ParsingError, SQLStatementParser
-from sqlvalidator.grammar.sql import Expression
+from sqlvalidator.grammar.sql import SelectStatement, WithStatement
 from sqlvalidator.grammar.tokeniser import to_tokens
 
 
@@ -10,12 +8,12 @@ class SQLQuery:
 
     def __init__(self, sql: str) -> None:
         self.sql: str = sql
-        self._sql_query: Optional[Expression] = None
+        self._sql_query: SelectStatement | WithStatement | None = None
         self.validated: bool = False
-        self.errors: List[str] = []
+        self.errors: list[str] = []
 
     @property
-    def sql_query(self) -> Expression:
+    def sql_query(self) -> SelectStatement | WithStatement:
         """Parse the SQL and return its AST query object representation."""
         if self._sql_query is None:
             self._sql_query = SQLStatementParser.parse(to_tokens(self.sql))
@@ -35,7 +33,7 @@ class SQLQuery:
         """Internal validation helper to invoke parsing and AST validation."""
         self.validated = True
         try:
-            self.errors = self.sql_query.validate()
+            self.errors = self.sql_query.validate(known_fields=set())
         except ParsingError as ex:
             self.errors.append(str(ex))
 

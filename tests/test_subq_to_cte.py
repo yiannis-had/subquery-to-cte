@@ -1,12 +1,10 @@
-"""Tests for the subquery-to-CTE rewriter."""
-
 import warnings
 
-import pytest
-
+from sqlvalidator import parse
+from sqlvalidator.grammar.sql import SelectStatement, Table
 from subq_to_cte import (
-    CTERewriter,
     CommentedWithQuery,
+    CTERewriter,
     TableCollector,
     collect_tables,
     get_preceding_comments,
@@ -14,8 +12,6 @@ from subq_to_cte import (
     rewrite_query,
     strip_comments_preserving_positions,
 )
-from sqlvalidator import parse
-from sqlvalidator.grammar.sql import SelectStatement, Table
 
 
 def _extract_cte_names(result: str) -> list[str]:
@@ -68,8 +64,7 @@ class TestRewriteQuery:
     def test_where_in_subquery(self):
         """WHERE ... IN (subquery) should extract the subquery."""
         sql = (
-            "SELECT name FROM customers "
-            "WHERE id IN (SELECT customer_id FROM vip_list);"
+            "SELECT name FROM customers WHERE id IN (SELECT customer_id FROM vip_list);"
         )
         result = rewrite_query(sql)
         names = _extract_cte_names(result)
@@ -92,11 +87,7 @@ class TestRewriteQuery:
 
     def test_alias_based_cte_naming(self):
         """CTE name should derive from the subquery alias when available."""
-        sql = (
-            "SELECT * FROM ("
-            "    SELECT id FROM some_table"
-            ") recent_orders;"
-        )
+        sql = "SELECT * FROM (    SELECT id FROM some_table) recent_orders;"
         result = rewrite_query(sql)
         names = _extract_cte_names(result)
         assert len(names) == 1
@@ -104,11 +95,7 @@ class TestRewriteQuery:
 
     def test_alias_collides_with_table_name(self):
         """When alias matches a table name, a numbered suffix is added."""
-        sql = (
-            "SELECT * FROM ("
-            "    SELECT id FROM recent_orders"
-            ") recent_orders;"
-        )
+        sql = "SELECT * FROM (    SELECT id FROM recent_orders) recent_orders;"
         result = rewrite_query(sql)
         names = _extract_cte_names(result)
         assert len(names) == 1
@@ -116,15 +103,13 @@ class TestRewriteQuery:
 
     def test_name_collision_avoidance(self):
         """CTE names should not shadow existing table names."""
-        sql = (
-            "SELECT * FROM ("
-            "    SELECT id FROM orders"
-            ") orders;"
-        )
+        sql = "SELECT * FROM (    SELECT id FROM orders) orders;"
         result = rewrite_query(sql)
         names = _extract_cte_names(result)
         assert len(names) == 1
-        assert names[0] != "orders", "CTE should not be named 'orders' — that's an existing table"
+        assert names[0] != "orders", (
+            "CTE should not be named 'orders' — that's an existing table"
+        )
         assert names[0].startswith("orders_")
 
     def test_query_with_existing_with_clause(self):

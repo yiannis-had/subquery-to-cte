@@ -23,13 +23,13 @@ Automatically rewrites SQL `SELECT` statements by extracting nested subqueries i
 Pass a SQL file:
 
 ```bash
-python3 subq-to-cte.py query.sql
+python3 subq_to_cte.py query.sql
 ```
 
 Or pipe SQL via stdin:
 
 ```bash
-cat query.sql | python3 subq-to-cte.py
+cat query.sql | python3 subq_to_cte.py
 ```
 
 The rewritten SQL is printed to stdout.

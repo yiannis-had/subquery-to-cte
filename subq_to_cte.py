@@ -23,7 +23,6 @@ from sqlvalidator.grammar.sql import (
 )
 
 
-
 def collect_tables(node: Any) -> set[str]:
     """Recursively collect all table names referenced in an AST node."""
     tables: set[str] = set()
@@ -424,8 +423,9 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    if args.file:
-        with open(args.file) as f:
+    file_path: str | None = args.file
+    if file_path:
+        with open(file_path) as f:
             sql_text = f.read()
     else:
         sql_text = sys.stdin.read()

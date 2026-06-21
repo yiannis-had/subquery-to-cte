@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, List, Optional, Set
+from typing import Any
 
 from sqlvalidator.grammar.tokeniser import lower
 
@@ -15,7 +15,7 @@ def transform(obj: Any) -> str:
 @dataclass
 class _FieldInfo:
     name: str
-    type: type
+    type: type | None
 
     def __hash__(self):
         return hash(self.name)
@@ -123,11 +123,13 @@ class SelectStatement:
             statement_str += ";"
         return statement_str
 
-    def validate(self, known_fields: Optional[Set[_FieldInfo]] = None) -> list:
-        errors = []
+    def validate(self, known_fields: set[_FieldInfo] | None = None) -> list[str]:
+        errors: list[str] = []
         known_fields = known_fields or set()
-        if hasattr(self.from_statement, "known_fields"):
-            known_fields = known_fields | self.from_statement.known_fields
+        if self.from_statement is not None and hasattr(
+            self.from_statement, "known_fields"
+        ):
+            known_fields = known_fields | self.from_statement.known_fields  # type: ignore[attributeAccess]
 
         for e in self.expressions:
             errors += e.validate(known_fields)
@@ -148,7 +150,7 @@ class SelectStatement:
         return errors
 
     @property
-    def known_fields(self) -> Set[_FieldInfo]:
+    def known_fields(self) -> set[_FieldInfo]:
         fields = set()
         for e in self.expressions:
             if isinstance(e, Column):
@@ -174,13 +176,15 @@ class SelectStatement:
 
     def __eq__(self, other):
         return (
-            type(self) == type(other)
+            type(self) is type(other)
             and self.select_all == other.select_all
             and self.select_distinct == other.select_distinct
             and (
                 (self.select_distinct_on is None and other.select_distinct_on is None)
                 or (
-                    len(self.select_distinct_on) == len(other.select_distinct_on)
+                    self.select_distinct_on is not None
+                    and other.select_distinct_on is not None
+                    and len(self.select_distinct_on) == len(other.select_distinct_on)
                     and all(
                         a == o
                         for a, o in zip(
@@ -242,13 +246,13 @@ class Expression:
         return "<{}: {!r}>".format(self.__class__.__name__, self.value)
 
     def __eq__(self, other):
-        return type(self) == type(other) and self.value == other.value
+        return type(self) is type(other) and self.value == other.value
 
-    def validate(self, known_fields: Set[_FieldInfo]) -> list:
+    def validate(self, known_fields: set[_FieldInfo]) -> list[str]:
         return []
 
     @property
-    def return_type(self):
+    def return_type(self) -> type | None:
         return object
 
     def resolve_return_type(self, known_fields):
@@ -267,7 +271,7 @@ class WhereClause(Expression):
             return "\n " + transformed_value.replace("\n", "\n ")
         return " " + transformed_value
 
-    def validate(self, known_fields: Set[_FieldInfo]) -> list:
+    def validate(self, known_fields: set[_FieldInfo]) -> list[str]:  # pyright: ignore[reportIncompatibleMethodOverride]
         errors = super().validate(known_fields)
         errors += self.value.validate(known_fields)
         value_type = self.value.resolve_return_type(known_fields)
@@ -280,11 +284,12 @@ class WhereClause(Expression):
         return errors
 
     def __eq__(self, other):
-        return type(self) == type(other) and self.value == other.value
+        return type(self) is type(other) and self.value == other.value
 
 
 class GroupByClause(Expression):
     def __init__(self, *args, rollup=False):
+        super().__init__(args)
         self.args = args
         self.rollup = rollup
         self.group_each_by = False
@@ -295,7 +300,7 @@ class GroupByClause(Expression):
                 "\n", "\n "
             )
         else:
-            group_by_str = " " + transform(self.args[0])
+            group_by_str = " " + transform(self.args[0])  # pyright: ignore[reportGeneralTypeIssues]
         if self.rollup:
             group_by_str = " ROLLUP{}".format(group_by_str)
         return group_by_str
@@ -307,14 +312,14 @@ class GroupByClause(Expression):
 
     def __eq__(self, other):
         return (
-            type(self) == type(other)
+            type(self) is type(other)
             and len(self.args) == len(other.args)
             and all(a == o for a, o in zip(self.args, other.args))
             and self.rollup == other.rollup
             and self.group_each_by == other.group_each_by
         )
 
-    def validate(self, known_fields, select_expressions):
+    def validate(self, known_fields, select_expressions):  # pyright: ignore[reportIncompatibleMethodOverride]
         errors = super().validate(known_fields)
         for arg in self.args:
             while isinstance(arg, Parenthesis):
@@ -369,6 +374,7 @@ class HavingClause(Expression):
 
 class OrderByClause(Expression):
     def __init__(self, *args):
+        super().__init__(args)
         self.args = args
 
     def transform(self, allow_linebreak=True):
@@ -379,7 +385,7 @@ class OrderByClause(Expression):
             else:
                 order_by_str = " " + ", ".join(map(str, self.args))
         else:
-            order_by_str = " " + transform(self.args[0])
+            order_by_str = " " + transform(self.args[0])  # pyright: ignore[reportGeneralTypeIssues]
         return order_by_str
 
     def __repr__(self):
@@ -389,12 +395,12 @@ class OrderByClause(Expression):
 
     def __eq__(self, other):
         return (
-            type(self) == type(other)
+            type(self) is type(other)
             and len(self.args) == len(other.args)
             and all(a == o for a, o in zip(self.args, other.args))
         )
 
-    def validate(self, known_fields, select_expressions):
+    def validate(self, known_fields, select_expressions):  # pyright: ignore[reportIncompatibleMethodOverride]
         errors = super().validate(known_fields)
         for arg in self.args:
             errors += arg.validate(known_fields, select_expressions)
@@ -427,7 +433,7 @@ class OrderByItem(Expression):
             and self.has_desc == other.has_desc
         )
 
-    def validate(self, known_fields, select_expressions):
+    def validate(self, known_fields, select_expressions):  # pyright: ignore[reportIncompatibleMethodOverride]
         errors = super().validate(known_fields)
         value = self.value
         while isinstance(value, Parenthesis):
@@ -466,7 +472,7 @@ class LimitClause(Expression):
         value = self.value
         while isinstance(value, Parenthesis):
             value = value.value
-        if value.return_type != int or not isinstance(value, Integer):
+        if value.return_type is not int or not isinstance(value, Integer):
             errors.append("argument of LIMIT must not contain variables")
         else:
             if isinstance(value, Integer) and value.value < 0:
@@ -480,7 +486,7 @@ class OffsetClause(Expression):
         value = self.value
         while isinstance(value, Parenthesis):
             value = value.value
-        if value.return_type != int or not isinstance(value, Integer):
+        if value.return_type is not int or not isinstance(value, Integer):
             errors.append("argument of OFFSET must be integer")
         else:
             if isinstance(value, Integer) and value.value < 0:
@@ -489,7 +495,8 @@ class OffsetClause(Expression):
 
 
 class WithQuery(Expression):
-    def __init__(self, name: str, statement: SelectStatement):
+    def __init__(self, name: str, statement):
+        super().__init__(name)
         self.name = name
         # todo: column name, for recursivity
         self.statement = statement
@@ -501,14 +508,15 @@ class WithQuery(Expression):
 
     def __eq__(self, other):
         return (
-            type(self) == type(other)
+            type(self) is type(other)
             and self.name == other.name
             and self.statement == other.statement
         )
 
 
 class WithStatement(Expression):
-    def __init__(self, with_queries: List[WithQuery], select_statement):
+    def __init__(self, with_queries: list[WithQuery], select_statement):
+        super().__init__(select_statement)
         # todo: recursive
         self.with_queries = with_queries
         self.select_statement = select_statement
@@ -521,7 +529,7 @@ class WithStatement(Expression):
 
     def __eq__(self, other):
         return (
-            type(self) == type(other)
+            type(self) is type(other)
             and len(self.with_queries) == len(other.with_queries)
             and all(a == o for a, o in zip(self.with_queries, other.with_queries))
             and self.select_statement == other.select_statement
@@ -530,6 +538,7 @@ class WithStatement(Expression):
 
 class FunctionCall(Expression):
     def __init__(self, function_name, *args):
+        super().__init__(function_name)
         self.function_name = function_name
         self.args = args
 
@@ -564,7 +573,7 @@ class FunctionCall(Expression):
 
     def __eq__(self, other):
         return (
-            type(self) == type(other)
+            type(self) is type(other)
             and self.function_name == other.function_name
             and len(self.args) == len(other.args)
             and all(a == o for a, o in zip(self.args, other.args))
@@ -642,6 +651,7 @@ class ArrayAggFunctionCall(FunctionCall):
 
 class FilteredFunctionCall(Expression):
     def __init__(self, function_call: FunctionCall, filter_condition):
+        super().__init__(function_call)
         self.function_call = function_call
         self.filter_condition = filter_condition
 
@@ -652,7 +662,7 @@ class FilteredFunctionCall(Expression):
 
     def __eq__(self, other):
         return (
-            type(self) == type(other)
+            type(self) is type(other)
             and self.function_call == other.function_call
             and self.filter_condition == other.filter_condition
         )
@@ -666,6 +676,7 @@ class FilteredFunctionCall(Expression):
 
 class AnalyticsClause(Expression):
     def __init__(self, function, partition_by, order_by, frame_clause):
+        super().__init__(function)
         self.function = function
         self.partition_by = partition_by
         self.order_by = order_by
@@ -695,12 +706,14 @@ class AnalyticsClause(Expression):
 
     def __eq__(self, other):
         return (
-            type(self) == type(other)
+            type(self) is type(other)
             and self.function == other.function
             and (
                 (self.partition_by is None and other.partition_by is None)
                 or (
-                    len(self.partition_by) == len(other.partition_by)
+                    self.partition_by is not None
+                    and other.partition_by is not None
+                    and len(self.partition_by) == len(other.partition_by)
                     and all(
                         a == o for a, o in zip(self.partition_by, other.partition_by)
                     )
@@ -737,6 +750,7 @@ class AnalyticsClause(Expression):
 
 class WindowFrameClause(Expression):
     def __init__(self, rows_range, frame):
+        super().__init__(rows_range)
         self.rows_range = rows_range
         self.frame = frame
 
@@ -755,7 +769,7 @@ class WindowFrameClause(Expression):
 
     def __eq__(self, other):
         return (
-            type(self) == type(other)
+            type(self) is type(other)
             and self.rows_range == other.rows_range
             and self.frame == other.frame
         )
@@ -802,6 +816,7 @@ class Column(Expression):
 
 class ChainedColumns(Expression):
     def __init__(self, *args):
+        super().__init__(args)
         self.columns = args
 
     def __str__(self):
@@ -812,7 +827,7 @@ class ChainedColumns(Expression):
 
     def __eq__(self, other):
         return (
-            type(self) == type(other)
+            type(self) is type(other)
             and len(self.columns) == len(other.columns)
             and all(a == o for a, o in zip(self.columns, other.columns))
         )
@@ -986,7 +1001,7 @@ class Parenthesis(Expression):
 
     def __eq__(self, other):
         return (
-            type(self) == type(other)
+            type(self) is type(other)
             and len(self.args) == len(other.args)
             and all(a == o for a, o in zip(self.args, other.args))
         )
@@ -1004,19 +1019,21 @@ class Parenthesis(Expression):
         return errors
 
     @property
-    def known_fields(self) -> Set[_FieldInfo]:
+    def known_fields(self) -> set[_FieldInfo]:
         if hasattr(self.args[0], "known_fields"):
             return self.args[0].known_fields
         return set()
 
     @property
-    def return_type(self):
+    def return_type(self) -> type:
         for a in self.args:
             return a.return_type
+        return object
 
 
 class Array(Expression):
     def __init__(self, *args):
+        super().__init__(args)
         self.args = args
 
     def __str__(self):
@@ -1027,7 +1044,7 @@ class Array(Expression):
 
     def __eq__(self, other):
         return (
-            type(self) == type(other)
+            type(self) is type(other)
             and len(self.args) == len(other.args)
             and all(a == o for a, o in zip(self.args, other.args))
         )
@@ -1035,6 +1052,7 @@ class Array(Expression):
 
 class Alias(Expression):
     def __init__(self, expression, alias, with_as):
+        super().__init__(expression)
         self.expression = expression
         self.alias = alias
         self.with_as = with_as
@@ -1057,7 +1075,7 @@ class Alias(Expression):
 
     def __eq__(self, other):
         return (
-            type(self) == type(other)
+            type(self) is type(other)
             and self.expression == other.expression
             and self.alias == other.alias
         )
@@ -1072,7 +1090,7 @@ class Alias(Expression):
         return self.expression.return_type
 
     @property
-    def known_fields(self) -> Set[_FieldInfo]:
+    def known_fields(self) -> set[_FieldInfo]:
         return {
             _FieldInfo("{}.{}".format(transform(self.alias), f.name), f.type)
             for f in self.expression.known_fields
@@ -1097,6 +1115,7 @@ class Index(Expression):
 
 class ArithmaticOperator(Expression):
     def __init__(self, operator, *args):
+        super().__init__(operator)
         self.operator = operator
         self.args = args
 
@@ -1122,11 +1141,6 @@ class ArithmaticOperator(Expression):
         if any(isinstance(a, float) for a in self.args):
             return float
         return int
-
-
-class Addition(ArithmaticOperator):
-    def __init__(self, *args):
-        super().__init__("+", *args)
 
 
 class BitwiseOperation(Expression):
@@ -1160,7 +1174,7 @@ class Table(Expression):
         return table_str
 
     @property
-    def known_fields(self) -> Set[_FieldInfo]:
+    def known_fields(self) -> set[_FieldInfo]:
         return {_FieldInfo("*", type=object)}
 
 
@@ -1196,6 +1210,7 @@ class Join(Expression):
     VALUES = ("join", "inner", "left", "right", "full", "cross", "outer", ",", "each")
 
     def __init__(self, join_type, left_from, right_from, on, using):
+        super().__init__(join_type)
         self.join_type = join_type
         self.left_from = left_from
         self.right_from = right_from
@@ -1284,7 +1299,7 @@ class Join(Expression):
 
     def __eq__(self, other):
         return (
-            type(self) == type(other)
+            type(self) is type(other)
             and self.join_type == other.join_type
             and self.left_from == other.left_from
             and self.right_from == other.right_from
@@ -1308,14 +1323,14 @@ class Join(Expression):
             self.using,
         )
 
-    def validate(self, known_fields: Set[_FieldInfo]) -> list:
+    def validate(self, known_fields: set[_FieldInfo]) -> list[str]:
         errors = super().validate(known_fields)
         if self.join_type not in ("CROSS JOIN", ",") and not (self.using or self.on):
             errors.append("Missing ON or USING for join")
         return errors
 
     @property
-    def known_fields(self) -> Set[_FieldInfo]:
+    def known_fields(self) -> set[_FieldInfo]:
         known_fields = set()
         if isinstance(self.left_from, Alias):
             left_alias = self.left_from.alias
@@ -1343,6 +1358,7 @@ class CombinedQueries(Expression):
     SET_OPERATORS = ("union", "intersect", "except", "all")
 
     def __init__(self, set_operator, left_query, right_query):
+        super().__init__(set_operator)
         self.set_operator = set_operator
         self.left_query = left_query
         self.right_query = right_query
@@ -1359,7 +1375,7 @@ class CombinedQueries(Expression):
 
     def __eq__(self, other):
         return (
-            type(self) == type(other)
+            type(self) is type(other)
             and self.set_operator == other.set_operator
             and self.left_query == other.left_query
             and self.right_query == other.right_query
@@ -1431,7 +1447,7 @@ class Condition(Expression):
 
     def __eq__(self, other):
         return (
-            type(self) == type(other)
+            type(self) is type(other)
             and self.value == other.value
             and self.predicate == other.predicate
             and self.right_hand == other.right_hand
@@ -1455,6 +1471,7 @@ class BooleanCondition(Expression):
     PREDICATES = ("and", "or")
 
     def __init__(self, type, *args):
+        super().__init__(type)
         assert type.lower() in ("and", "or")
         self.type = type
         self.args = args
@@ -1489,7 +1506,7 @@ class BooleanCondition(Expression):
 
     def __eq__(self, other):
         return (
-            type(self) == type(other)
+            type(self) is type(other)
             and self.type == other.type
             and len(self.args) == len(other.args)
             and all(a == o for a, o in zip(self.args, other.args))
@@ -1560,7 +1577,7 @@ class ExceptClause(SelectAllClause):
 class ReplaceClause(SelectAllClause):
     KEYWORD = "REPLACE"
 
-    def validate(self, known_fields: Set[_FieldInfo]) -> list:
+    def validate(self, known_fields: set[_FieldInfo]) -> list[str]:
         errors = super().validate(known_fields)
         for arg in self.args:
             errors += arg.alias.validate(known_fields)

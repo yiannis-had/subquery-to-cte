@@ -1,4 +1,4 @@
-from typing import Generator, Iterable, Iterator, List, Optional, Tuple
+from collections.abc import Generator, Iterable, Iterator
 
 STRING_SPLIT_TOKENS = ("'", '"', "`")
 WHITESPACE_SPLIT_TOKENS = (" ", "\n", "\t")
@@ -21,14 +21,14 @@ KEPT_SPLIT_TOKENS = (
 MERGE_TOKENS = ("<>", "<=", ">=", "<<", ">>", "||", "!=")
 
 
-def lower(s: Optional[str]) -> Optional[str]:
+def lower(s: str | None) -> str | None:
     """Return lowercase representation of a string if it is not None."""
     return s.lower() if s else s
 
 
 def get_tokens_until_closing_parenthesis(
-    tokens: Iterator[str], first_token: Optional[str] = None
-) -> List[str]:
+    tokens: Iterator[str], first_token: str | None = None
+) -> list[str]:
     """Consume tokens from iterator until a matching closing parenthesis is found."""
     argument_tokens = []
     next_token = first_token or next(tokens, None)
@@ -47,9 +47,9 @@ def get_tokens_until_closing_parenthesis(
 def get_tokens_until_one_of(
     tokens: Iterator[str],
     stop_words: Iterable[str],
-    first_token: Optional[str] = None,
-    keep: Optional[Iterable[Tuple[str, str]]] = None,
-) -> Tuple[List[str], Optional[str]]:
+    first_token: str | None = None,
+    keep: Iterable[tuple[str, str]] | None = None,
+) -> tuple[list[str], str | None]:
     """Consume tokens until a stop word is encountered at the top level of nesting."""
     argument_tokens = [first_token] if first_token is not None else []
     keep_pairs = keep or []
@@ -59,13 +59,13 @@ def get_tokens_until_one_of(
     count_square_brackets = 0 if first_token != "[" else 1
     count_case_expr = 0 if first_token != "case" else 1
     while next_token is not None and not (
-        lower(next_token) in stop_words
+        next_token.lower() in stop_words
         and count_parenthesis <= 0
         and count_square_brackets <= 0
         and count_case_expr <= 0
         and (
             not argument_tokens
-            or (lower(argument_tokens[-1]), lower(next_token)) not in keep_pairs
+            or (argument_tokens[-1].lower(), next_token.lower()) not in keep_pairs
         )
     ):
         argument_tokens.append(next_token)
@@ -77,9 +77,9 @@ def get_tokens_until_one_of(
             count_square_brackets += 1
         elif next_token == "]":
             count_square_brackets -= 1
-        elif lower(next_token) == "case":
+        elif next_token.lower() == "case":
             count_case_expr += 1
-        elif lower(next_token) == "end":
+        elif next_token.lower() == "end":
             count_case_expr -= 1
         next_token = next(tokens, None)
 
@@ -87,12 +87,12 @@ def get_tokens_until_one_of(
 
 
 def get_tokens_until_not_in(
-    tokens: Iterator[str], kept_words: Iterable[str], first_token: Optional[str] = None
-) -> Tuple[List[str], Optional[str]]:
+    tokens: Iterator[str], kept_words: Iterable[str], first_token: str | None = None
+) -> tuple[list[str], str | None]:
     """Consume tokens as long as they are part of the kept_words collection."""
     argument_tokens = [first_token] if first_token is not None else []
     next_token = next(tokens, None)
-    while next_token is not None and lower(next_token) in kept_words:
+    while next_token is not None and next_token.lower() in kept_words:
         argument_tokens.append(next_token)
         next_token = next(tokens, None)
 
@@ -110,7 +110,7 @@ def split_with_sep(s: str, sep: str) -> Generator[str, None, None]:
         yield splitted[-1]
 
 
-def split_with_escaping(s: str, sep: str) -> List[str]:
+def split_with_escaping(s: str, sep: str) -> list[str]:
     """Split string by separator, respecting backslash escapes."""
     splitted = []
     split_iterator = iter(s.split(sep))
@@ -128,9 +128,7 @@ def split_with_escaping(s: str, sep: str) -> List[str]:
     return splitted
 
 
-def merge_stream(
-    s: Iterator[str], goals: Iterable[str]
-) -> Generator[str, None, None]:
+def merge_stream(s: Iterator[str], goals: Iterable[str]) -> Generator[str, None, None]:
     """Merge tokens in the stream if they form one of the composite goal tokens."""
     for element in s:
         matching_goals = [g for g in goals if g.startswith(element)]
@@ -218,8 +216,8 @@ def strip_sql_comments(sql: str) -> str:
     while i < n:
         if in_string:
             out.append(chars[i])
-            if chars[i] == '\\' and i + 1 < n:
-                out.append(chars[i+1])
+            if chars[i] == "\\" and i + 1 < n:
+                out.append(chars[i + 1])
                 i += 2
                 continue
             if chars[i] == in_string:
@@ -233,15 +231,15 @@ def strip_sql_comments(sql: str) -> str:
             i += 1
             continue
 
-        if i + 1 < n and chars[i] == '-' and chars[i+1] == '-':
+        if i + 1 < n and chars[i] == "-" and chars[i + 1] == "-":
             i += 2
-            while i < n and chars[i] != '\n':
+            while i < n and chars[i] != "\n":
                 i += 1
             continue
 
-        if i + 1 < n and chars[i] == '/' and chars[i+1] == '*':
+        if i + 1 < n and chars[i] == "/" and chars[i + 1] == "*":
             i += 2
-            while i + 1 < n and not (chars[i] == '*' and chars[i+1] == '/'):
+            while i + 1 < n and not (chars[i] == "*" and chars[i + 1] == "/"):
                 i += 1
             i += 2
             continue
